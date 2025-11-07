@@ -10,6 +10,8 @@ import TokenDisplay from '@/components/visualization/TokenDisplay';
 import EmbeddingLayer from '@/components/visualization/EmbeddingLayer';
 import PositionalEncoding from '@/components/visualization/PositionalEncoding';
 import AttentionBlock from '@/components/visualization/AttentionBlock';
+import AddNorm from '@/components/visualization/AddNorm';
+import FeedForward from '@/components/visualization/FeedForward';
 
 function VisualizeContent() {
   const router = useRouter();
@@ -20,9 +22,7 @@ function VisualizeContent() {
 
   const {
     inputSentence,
-    // --- THE FIX IS HERE ---
-    // Default 'tokens' to an empty array `[]` to prevent errors on the initial render.
-    tokens = [],
+    tokens,
     setInputSentence,
     setTokens,
     currentStep,
@@ -33,20 +33,17 @@ function VisualizeContent() {
     setConfig
   } = useVisualizationStore();
 
-  // Effect to initialize the visualization when the page loads or URL changes
   useEffect(() => {
     if (sentence) {
       resetVisualization();
       
-      // Set configuration from URL
+      // Set configuration
       setConfig({ dModel: dimension, numHeads });
       
-      // Set up the initial state
       setInputSentence(sentence);
       const newTokens = tokenize(sentence);
       setTokens(newTokens);
       
-      // Start the animation process after a brief delay
       const startDelay = 800;
       setTimeout(() => {
         setCurrentStep('tokenizing');
@@ -55,54 +52,53 @@ function VisualizeContent() {
         }, 100);
       }, startDelay);
     }
-    // We only want this effect to run when the URL params change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sentence, dimension, numHeads]);
+  }, [sentence, dimension, numHeads, setInputSentence, setTokens, setCurrentStep, setIsPlaying, resetVisualization, setConfig]);
 
-  // Effect to automatically progress through the animation steps
+  // Auto-progress through steps - FIX: Use tokens from store
   useEffect(() => {
-    // Don't do anything if the animation isn't playing or if there are no tokens
-    if (!isPlaying || tokens.length === 0) return;
+    if (!isPlaying || !tokens || tokens.length === 0) return;
 
+    let timer;
     const tokensCount = tokens.length;
-    // Define how long each step should take, based on the number of tokens
     const stepDurations = {
-      tokenizing: 1000 + (tokensCount * 200),
-      embedding: 1500 + (tokensCount * 300),
-      positional: 1500 + (tokensCount * 300),
-      // Attention is more complex, so give it more time
-      attention: 4000 + (tokensCount * 1000) 
+      tokenizing: 2000 + (tokensCount * 1000),
+      embedding: 2000 + (tokensCount * 2000),
+      positional: 2000 + (tokensCount * 2000),
+      attention: 5000 + (tokensCount * 5000)
     };
 
     const duration = stepDurations[currentStep];
     
-    const timer = setTimeout(() => {
-      const steps = ['tokenizing', 'embedding', 'positional', 'attention'];
-      const currentIndex = steps.indexOf(currentStep);
-      
-      if (currentIndex < steps.length - 1) {
-        // Move to the next step
-        setCurrentStep(steps[currentIndex + 1]);
-      } else {
-        // We've reached the end of the animation
-        setIsPlaying(false);
-      }
-    }, duration);
+    if (duration) {
+      timer = setTimeout(() => {
+        const steps = ['tokenizing', 'embedding', 'positional', 'attention', 'addnorm', 'feedforward'];
+        const currentIndex = steps.indexOf(currentStep);
+        
+        if (currentIndex < steps.length - 1) {
+          setTimeout(() => {
+            setCurrentStep(steps[currentIndex + 1]);
+          }, 500);
+        } else {
+          // Animation complete
+          setIsPlaying(false);
+        }
+      }, duration);
+    }
 
-    // Cleanup function to clear the timer if the component unmounts or dependencies change
-    return () => clearTimeout(timer);
-    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [currentStep, isPlaying, tokens, setCurrentStep, setIsPlaying]);
 
   const handleReset = () => {
+    resetVisualization();
     router.push('/');
   };
 
-  const showCompletion = currentStep === 'attention' && !isPlaying && tokens.length > 0;
+  const showCompletion = currentStep === 'feedforward' && !isPlaying;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Top Controls Header */}
       <div className="bg-slate-800/50 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -114,14 +110,18 @@ function VisualizeContent() {
                 <Home className="w-4 h-4 text-slate-300" />
                 <span className="text-slate-300 text-sm font-medium">Home</span>
               </button>
+
               <div className="h-8 w-px bg-slate-600" />
+
               <div className="text-slate-300">
                 <span className="text-sm text-slate-500">Visualizing:</span>
                 <span className="ml-2 font-mono font-semibold text-purple-400">
                   "{inputSentence}"
                 </span>
               </div>
+
               <div className="h-8 w-px bg-slate-600" />
+
               <div className="flex items-center gap-3 text-xs">
                 <div className="bg-blue-500/20 px-3 py-1 rounded border border-blue-400/50">
                   <span className="text-blue-300">dim: {dimension}</span>
@@ -131,12 +131,12 @@ function VisualizeContent() {
                 </div>
               </div>
             </div>
+
             <AnimationControls />
           </div>
         </div>
       </div>
 
-      {/* Step Progress Bar */}
       <div className="bg-slate-800/30 border-b border-slate-700/30">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-center gap-3">
@@ -144,23 +144,45 @@ function VisualizeContent() {
               { id: 'tokenizing', label: 'Tokenize' },
               { id: 'embedding', label: 'Embed' },
               { id: 'positional', label: 'Position' },
-              { id: 'attention', label: 'Attention' }
-            ].map((step, idx, arr) => {
-              const steps = arr.map(s => s.id);
+              { id: 'attention', label: 'Attention' },
+              { id: 'addnorm', label: 'Add&Norm' },
+              { id: 'feedforward', label: 'FFN' }
+            ].map((step, idx) => {
+              const steps = ['tokenizing', 'embedding', 'positional', 'attention', 'addnorm', 'feedforward'];
               const currentIndex = steps.indexOf(currentStep);
               const stepIndex = steps.indexOf(step.id);
               const isActive = currentStep === step.id;
-              const isComplete = stepIndex < currentIndex || showCompletion;
+              const isComplete = stepIndex < currentIndex || (stepIndex === currentIndex && showCompletion);
               
               return (
                 <div key={step.id} className="flex items-center">
-                  <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${isActive ? 'bg-purple-500/20 border-purple-400 text-purple-300 scale-105' : isComplete ? 'bg-green-500/20 border-green-400 text-green-300' : 'bg-slate-700/30 border-slate-600 text-slate-500'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isActive ? 'bg-purple-500 text-white animate-pulse' : isComplete ? 'bg-green-500 text-white' : 'bg-slate-600 text-slate-400'}`}>
+                  <div className={`
+                    flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                    ${isActive
+                      ? 'bg-purple-500/20 border-purple-400 text-purple-300 scale-105' 
+                      : isComplete
+                      ? 'bg-green-500/20 border-green-400 text-green-300'
+                      : 'bg-slate-700/30 border-slate-600 text-slate-500'
+                    }
+                  `}>
+                    <div className={`
+                      w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all
+                      ${isActive
+                        ? 'bg-purple-500 text-white animate-pulse' 
+                        : isComplete
+                        ? 'bg-green-500 text-white'
+                        : 'bg-slate-600 text-slate-400'
+                      }
+                    `}>
                       {isComplete ? '✓' : idx + 1}
                     </div>
                     <span className="text-sm font-medium">{step.label}</span>
                   </div>
-                  {idx < arr.length - 1 && <div className={`w-8 h-px mx-2 transition-colors ${stepIndex < currentIndex ? 'bg-green-400' : 'bg-slate-600'}`} />}
+                  {idx < 5 && (
+                    <div className={`w-8 h-px mx-2 transition-colors ${
+                      isComplete ? 'bg-green-400' : 'bg-slate-600'
+                    }`} />
+                  )}
                 </div>
               );
             })}
@@ -168,43 +190,80 @@ function VisualizeContent() {
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="container mx-auto px-6 py-8">
-        <div className="bg-slate-800/30 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-8 shadow-2xl min-h-[500px]">
+        <div className="bg-slate-800/30 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-8 shadow-2xl">
           <div className="space-y-12">
             <TokenDisplay />
             <EmbeddingLayer />
             <PositionalEncoding />
             <AttentionBlock />
+            <AddNorm />
+            <FeedForward />
 
             {showCompletion && (
               <div className="text-center py-12">
                 <div className="inline-flex flex-col items-center gap-4 bg-green-500/20 rounded-xl px-8 py-6 border-2 border-green-400">
                   <div className="text-6xl">🎉</div>
-                  <div className="text-3xl font-bold text-green-300 mb-2">Phase 1 Complete!</div>
-                  <p className="text-green-200 text-base max-w-2xl leading-relaxed">You've witnessed the complete flow from raw text to context-aware representations! You saw tokenization, embeddings, positional encoding, and the powerful self-attention mechanism in action.</p>
+                  <div className="text-3xl font-bold text-green-300 mb-2">
+                    🎉 Complete Encoder Block Visualized!
+                  </div>
+                  <p className="text-green-200 text-base max-w-2xl leading-relaxed">
+                    You've witnessed the complete Encoder block from raw text to final representation! 
+                    You saw tokenization, embeddings, positional encoding, self-attention, 
+                    residual connections, layer normalization, and the feed-forward network in action.
+                  </p>
                   <div className="flex gap-4 mt-4">
-                    <button onClick={handleReset} className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors shadow-lg">
+                    <button
+                      onClick={handleReset}
+                      className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors shadow-lg"
+                    >
                       Try Another Sentence
                     </button>
+                    <button
+                      onClick={() => {
+                        resetVisualization();
+                        setTimeout(() => {
+                          setInputSentence(sentence);
+                          const newTokens = tokenize(sentence);
+                          setTokens(newTokens);
+                          setConfig({ dModel: dimension, numHeads });
+                          setTimeout(() => {
+                            setCurrentStep('tokenizing');
+                            setIsPlaying(true);
+                          }, 500);
+                        }, 100);
+                      }}
+                      className="px-8 py-3 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors shadow-lg"
+                    >
+                      Watch Again
+                    </button>
                   </div>
-                  <div className="mt-6 text-sm text-green-300/80">💡 Coming in Phase 2: Feed-Forward Networks & Final Output!</div>
+                  <div className="mt-6 text-sm text-green-300/80">
+                    💡 Coming in Phase 2: Feed-Forward Networks, Decoder, and Translation Output!
+                  </div>
                 </div>
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 bg-blue-500/10 border border-blue-400/30 rounded-xl p-4 backdrop-blur-sm">
+          <p className="text-blue-200 text-sm">
+            💡 <strong>How to use:</strong> The animation plays automatically through each step. 
+            Use the controls above to pause, adjust speed, or reset. Click the yellow "💡 Why this step?" 
+            buttons to understand what's happening at each stage!
+          </p>
         </div>
       </div>
     </main>
   );
 }
 
-// Suspense wrapper for the main content
 export default function VisualizePage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl animate-pulse">Loading Visualization...</div>
+        <div className="text-white text-xl">Loading visualization...</div>
       </div>
     }>
       <VisualizeContent />

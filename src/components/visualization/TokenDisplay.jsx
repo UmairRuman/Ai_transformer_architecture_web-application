@@ -4,10 +4,9 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useVisualizationStore } from '@/store/visualizationStore';
 import { TIMINGS } from '@/lib/constants';
-import IntuitionButton from '@/components/shared/IntuitionButton';
 
 export default function TokenDisplay() {
-  const { inputSentence, tokens, currentStep, isPlaying, animationSpeed } = useVisualizationStore();
+  const { inputSentence, tokens, currentStep, isPlaying, animationSpeed, hasStarted } = useVisualizationStore();
   const containerRef = useRef(null);
   const sentenceRef = useRef(null);
   const tokenRefs = useRef([]);
@@ -16,16 +15,19 @@ export default function TokenDisplay() {
   useEffect(() => {
     if (!containerRef.current || tokens.length === 0) return;
 
+    // Create timeline
     const tl = gsap.timeline({ 
       paused: true,
       timeScale: animationSpeed 
     });
     timelineRef.current = tl;
 
+    // Animation: Sentence appears
     tl.fromTo(sentenceRef.current,
       { opacity: 0, y: -20 },
       { opacity: 1, y: 0, duration: TIMINGS.fadeInOut, ease: 'power2.out' }
     )
+    // Sentence shakes/pulses before splitting
     .to(sentenceRef.current, {
       scale: 1.05,
       duration: 0.3,
@@ -33,10 +35,12 @@ export default function TokenDisplay() {
       yoyo: true,
       ease: 'power2.inOut'
     })
+    // Sentence fades out
     .to(sentenceRef.current, {
       opacity: 0,
       duration: TIMINGS.fadeInOut
     })
+    // Tokens appear with stagger
     .fromTo(tokenRefs.current,
       { opacity: 0, scale: 0.5, y: 20 },
       {
@@ -48,6 +52,7 @@ export default function TokenDisplay() {
         ease: 'back.out(1.7)'
       }
     )
+    // Tokens pulse to show they're active
     .to(tokenRefs.current, {
       scale: 1.1,
       duration: 0.3,
@@ -57,6 +62,7 @@ export default function TokenDisplay() {
       ease: 'power2.inOut'
     });
 
+    // Play animation if in tokenizing step
     if (currentStep === 'tokenizing' && isPlaying) {
       tl.play();
     }
@@ -68,56 +74,32 @@ export default function TokenDisplay() {
     };
   }, [tokens, currentStep, isPlaying, animationSpeed]);
 
+  // Update timeline speed when animationSpeed changes
   useEffect(() => {
     if (timelineRef.current) {
       timelineRef.current.timeScale(animationSpeed);
     }
   }, [animationSpeed]);
 
-  if (tokens.length === 0 || currentStep !== 'tokenizing') return null;
-
-  const intuitionContent = (
-    <>
-      <p className="text-lg">
-        <strong>What is tokenization?</strong>
-      </p>
-      <p>
-        Transformers don't understand text directly. They need to break it down into smaller pieces called "tokens". 
-        Think of it like breaking a sentence into individual words so we can process each one.
-      </p>
-      <div className="bg-slate-700/50 rounded-lg p-4">
-        <p className="font-semibold text-yellow-300 mb-2">Simple analogy:</p>
-        <p className="text-sm">
-          Imagine you're learning a new language. Instead of trying to understand an entire paragraph at once, 
-          you'd break it down word by word. That's exactly what tokenization does!
-        </p>
-      </div>
-      <p className="text-sm text-slate-400">
-        In production transformers (like GPT), tokenization is more sophisticated and can split words into subwords. 
-        For example, "unhappiness" might become ["un", "happiness"]. But we're keeping it simple here!
-      </p>
-    </>
-  );
+  if (tokens.length === 0) return null;
 
   return (
     <div ref={containerRef} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-          <h2 className="text-2xl font-bold text-white">Step 1: Tokenization</h2>
-        </div>
-        <IntuitionButton 
-          title="Understanding Tokenization"
-          content={intuitionContent}
-        />
+      {/* Section Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+        <h2 className="text-2xl font-bold text-white">Step 1: Tokenization</h2>
       </div>
 
+      {/* Description */}
       <p className="text-slate-300 text-sm max-w-2xl">
         The input sentence is broken down into individual tokens (words). 
         Each token will be processed separately through the transformer.
       </p>
 
+      {/* Visualization Area */}
       <div className="bg-slate-700/30 rounded-xl p-8 border border-slate-600/50 min-h-48 flex items-center justify-center">
+        {/* Original Sentence */}
         <div
           ref={sentenceRef}
           className="absolute text-3xl font-mono text-white font-semibold opacity-0"
@@ -125,6 +107,7 @@ export default function TokenDisplay() {
           {inputSentence}
         </div>
 
+        {/* Tokenized Words */}
         <div className="flex gap-4 flex-wrap justify-center">
           {tokens.map((token, idx) => (
             <div
@@ -132,6 +115,7 @@ export default function TokenDisplay() {
               ref={(el) => (tokenRefs.current[idx] = el)}
               className="relative opacity-0"
             >
+              {/* Token Box */}
               <div className="bg-gradient-to-br from-blue-500/30 to-blue-600/30 backdrop-blur-sm px-6 py-4 rounded-xl border-2 border-blue-400/50 shadow-lg hover:shadow-blue-400/50 transition-shadow">
                 <div className="text-center">
                   <div className="text-xs text-blue-300 font-semibold mb-1">
@@ -142,6 +126,8 @@ export default function TokenDisplay() {
                   </div>
                 </div>
               </div>
+
+              {/* Token Index Badge */}
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-slate-800">
                 {idx}
               </div>
@@ -150,6 +136,7 @@ export default function TokenDisplay() {
         </div>
       </div>
 
+      {/* Info Box */}
       <div className="bg-blue-500/10 border border-blue-400/30 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <div className="text-2xl">💡</div>

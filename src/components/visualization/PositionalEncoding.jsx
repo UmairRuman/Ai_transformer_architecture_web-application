@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useVisualizationStore } from '@/store/visualizationStore';
 import { getPositionalEncoding, addVectors } from '@/lib/transformerLogic';
-import { TIMINGS, CONFIG } from '@/lib/constants';
+import { TIMINGS } from '@/lib/constants';
 import Vector from '@/components/shared/Vector';
 
 export default function PositionalEncoding() {
@@ -17,39 +17,39 @@ export default function PositionalEncoding() {
     setFinalInputVectors,
     currentStep, 
     isPlaying, 
-    animationSpeed 
+    animationSpeed,
+    config 
   } = useVisualizationStore();
   
   const containerRef = useRef(null);
   const timelineRef = useRef(null);
+  const dModel = config?.dModel || 6;
 
+  // Generate positional encodings
   useEffect(() => {
-    if (embeddings.length === 0 || currentStep !== 'positional') return;
+    if (embeddings.length === 0) return;
 
-    // Generate positional encodings
     const newPositionEncodings = embeddings.map((_, idx) => 
-      getPositionalEncoding(idx, CONFIG.dModel)
+      getPositionalEncoding(idx, dModel)
     );
     setPositionEncodings(newPositionEncodings);
 
-    // Calculate final vectors (embedding + positional encoding)
     const newFinalVectors = embeddings.map((embedding, idx) => 
       addVectors(embedding, newPositionEncodings[idx])
     );
     setFinalInputVectors(newFinalVectors);
+  }, [embeddings, dModel, setPositionEncodings, setFinalInputVectors]);
 
-    // Force a re-render to trigger animations
-    setTimeout(() => {
-      if (timelineRef.current) {
-        timelineRef.current.restart();
-      }
-    }, 100);
-  }, [embeddings, setPositionEncodings, setFinalInputVectors, currentStep]);
-
+  // Create and manage animation timeline
   useEffect(() => {
     if (!containerRef.current || positionEncodings.length === 0 || currentStep !== 'positional') return;
 
-    // Create timeline
+    // Kill existing timeline
+    if (timelineRef.current) {
+      timelineRef.current.kill();
+    }
+
+    // Create new timeline
     const tl = gsap.timeline({ 
       paused: true,
       timeScale: animationSpeed 
@@ -121,9 +121,11 @@ export default function PositionalEncoding() {
       );
     });
 
-    // Play animation if in positional step
-    if (currentStep === 'positional' && isPlaying) {
+    // Play or pause based on state
+    if (isPlaying) {
       tl.play();
+    } else {
+      tl.pause();
     }
 
     return () => {
@@ -131,7 +133,20 @@ export default function PositionalEncoding() {
         timelineRef.current.kill();
       }
     };
-  }, [positionEncodings, currentStep, isPlaying, animationSpeed]);
+  }, [positionEncodings, currentStep, animationSpeed]);
+
+  // Handle play/pause toggle
+  useEffect(() => {
+    if (!timelineRef.current) return;
+
+    if (currentStep === 'positional') {
+      if (isPlaying) {
+        timelineRef.current.play();
+      } else {
+        timelineRef.current.pause();
+      }
+    }
+  }, [isPlaying, currentStep]);
 
   // Update timeline speed
   useEffect(() => {
@@ -205,7 +220,7 @@ export default function PositionalEncoding() {
                 {/* Final Vector */}
                 <div className={`final-vector-${idx} opacity-0`}>
                   <Vector 
-                    values={finalInputVectors[idx]} 
+                    values={finalInputVectors[idx] || []} 
                     label="Final Input"
                     color="#10B981"
                     showValues={true}

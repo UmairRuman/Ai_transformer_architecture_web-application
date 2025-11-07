@@ -1,18 +1,18 @@
 'use client';
 
-import { Play, Pause, RotateCcw, Gauge, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, RotateCcw, Gauge, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useVisualizationStore } from '@/store/visualizationStore';
 
 export default function AnimationControls() {
   const {
     isPlaying,
     animationSpeed,
+    currentStep,
     togglePlay,
     setAnimationSpeed,
-    resetVisualization,
+    restartAnimation,
     nextStep,
-    previousStep,
-    currentStep
+    previousStep
   } = useVisualizationStore();
 
   const speeds = [
@@ -22,21 +22,27 @@ export default function AnimationControls() {
     { value: 2, label: '2x' }
   ];
 
-  const steps = ['idle', 'tokenizing', 'embedding', 'positional', 'attention'];
+  const steps = ['tokenizing', 'embedding', 'positional', 'attention'];
   const currentIndex = steps.indexOf(currentStep);
-  const canGoBack = currentIndex > 1;
-  const canGoForward = currentIndex < steps.length - 1;
+  const isFirstStep = currentIndex === 0 || currentStep === 'idle';
+  const isLastStep = currentIndex === steps.length - 1;
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Step Back */}
+    <div className="flex items-center gap-3">
+      {/* Previous Button */}
       <button
         onClick={previousStep}
-        disabled={!canGoBack}
-        className="p-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg transition-colors border border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+        disabled={isFirstStep}
+        className={`
+          flex items-center gap-2 px-3 py-2 rounded-lg transition-colors border
+          ${isFirstStep
+            ? 'bg-slate-700/30 border-slate-600/50 text-slate-500 cursor-not-allowed'
+            : 'bg-slate-700/50 hover:bg-slate-600/50 border-slate-600 text-slate-300'
+          }
+        `}
         title="Previous step"
       >
-        <SkipBack className="w-4 h-4 text-slate-300" />
+        <ChevronLeft className="w-4 h-4" />
       </button>
 
       {/* Play/Pause Button */}
@@ -57,17 +63,24 @@ export default function AnimationControls() {
         )}
       </button>
 
-      {/* Step Forward */}
+      {/* Next Button */}
       <button
         onClick={nextStep}
-        disabled={!canGoForward}
-        className="p-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg transition-colors border border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+        disabled={isLastStep}
+        className={`
+          flex items-center gap-2 px-3 py-2 rounded-lg transition-colors border
+          ${isLastStep
+            ? 'bg-slate-700/30 border-slate-600/50 text-slate-500 cursor-not-allowed'
+            : 'bg-slate-700/50 hover:bg-slate-600/50 border-slate-600 text-slate-300'
+          }
+        `}
         title="Next step"
       >
-        <SkipForward className="w-4 h-4 text-slate-300" />
+        <ChevronRight className="w-4 h-4" />
       </button>
 
-      <div className="h-8 w-px bg-slate-600 mx-1" />
+      {/* Divider */}
+      <div className="h-8 w-px bg-slate-600" />
 
       {/* Speed Control */}
       <div className="flex items-center gap-2 bg-slate-700/50 rounded-lg px-3 py-2 border border-slate-600">
@@ -78,10 +91,10 @@ export default function AnimationControls() {
               key={speed.value}
               onClick={() => setAnimationSpeed(speed.value)}
               className={`
-                px-2 py-1 rounded text-xs font-medium transition-all
+                px-2 py-1 rounded text-xs font-medium transition-colors
                 ${animationSpeed === speed.value
-                  ? 'bg-purple-500 text-white shadow-lg scale-110'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
+                  ? 'bg-purple-500 text-white'
+                  : 'text-slate-400 hover:text-slate-300'
                 }
               `}
             >
@@ -91,15 +104,14 @@ export default function AnimationControls() {
         </div>
       </div>
 
-      <div className="h-8 w-px bg-slate-600 mx-1" />
-
-      {/* Reset Button */}
+      {/* Reset Animation Button */}
       <button
-        onClick={resetVisualization}
-        className="flex items-center gap-2 px-3 py-2 bg-slate-700/50 hover:bg-red-500/20 hover:border-red-400/50 rounded-lg transition-colors border border-slate-600 group"
-        title="Reset visualization"
+        onClick={restartAnimation}
+        className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg transition-colors border border-slate-600"
+        title="Restart animation from beginning"
       >
-        <RotateCcw className="w-4 h-4 text-slate-300 group-hover:text-red-400 group-hover:rotate-180 transition-all duration-500" />
+        <RotateCcw className="w-4 h-4 text-slate-300" />
+        <span className="text-slate-300 text-sm font-medium">Reset</span>
       </button>
     </div>
   );

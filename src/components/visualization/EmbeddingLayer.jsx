@@ -4,26 +4,42 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useVisualizationStore } from '@/store/visualizationStore';
 import { getEmbedding } from '@/lib/transformerLogic';
-import { VOCAB, TIMINGS, CONFIG } from '@/lib/constants';
+import { TIMINGS, CONFIG } from '@/lib/constants';
 import Vector from '@/components/shared/Vector';
 
 export default function EmbeddingLayer() {
-  const { tokens, embeddings, setEmbeddings, currentStep, isPlaying, animationSpeed } = useVisualizationStore();
+  const { 
+    tokens, 
+    embeddings, 
+    setEmbeddings, 
+    currentStep, 
+    isPlaying, 
+    animationSpeed,
+    config 
+  } = useVisualizationStore();
+  
   const containerRef = useRef(null);
   const timelineRef = useRef(null);
+  const dModel = config?.dModel || 6;
 
+  // Generate embeddings when tokens are available
   useEffect(() => {
     if (tokens.length === 0) return;
 
-    // Generate embeddings for tokens
-    const newEmbeddings = tokens.map(token => getEmbedding(token, VOCAB));
+    const newEmbeddings = tokens.map(token => getEmbedding(token, dModel));
     setEmbeddings(newEmbeddings);
-  }, [tokens, setEmbeddings]);
+  }, [tokens, dModel, setEmbeddings]);
 
+  // Create and manage animation timeline
   useEffect(() => {
-    if (!containerRef.current || embeddings.length === 0) return;
+    if (!containerRef.current || embeddings.length === 0 || currentStep !== 'embedding') return;
 
-    // Create timeline
+    // Kill existing timeline if any
+    if (timelineRef.current) {
+      timelineRef.current.kill();
+    }
+
+    // Create new timeline
     const tl = gsap.timeline({ 
       paused: true,
       timeScale: animationSpeed 
@@ -66,9 +82,11 @@ export default function EmbeddingLayer() {
       );
     });
 
-    // Play animation if in embedding step
-    if (currentStep === 'embedding' && isPlaying) {
+    // Play or pause based on state
+    if (isPlaying) {
       tl.play();
+    } else {
+      tl.pause();
     }
 
     return () => {
@@ -76,7 +94,20 @@ export default function EmbeddingLayer() {
         timelineRef.current.kill();
       }
     };
-  }, [embeddings, currentStep, isPlaying, animationSpeed]);
+  }, [embeddings, currentStep, animationSpeed]);
+
+  // Handle play/pause toggle
+  useEffect(() => {
+    if (!timelineRef.current) return;
+
+    if (currentStep === 'embedding') {
+      if (isPlaying) {
+        timelineRef.current.play();
+      } else {
+        timelineRef.current.pause();
+      }
+    }
+  }, [isPlaying, currentStep]);
 
   // Update timeline speed
   useEffect(() => {
@@ -97,7 +128,7 @@ export default function EmbeddingLayer() {
 
       {/* Description */}
       <p className="text-slate-300 text-sm max-w-2xl">
-        Each token is converted into a dense vector of dimension {CONFIG.dModel}. 
+        Each token is converted into a dense vector of dimension {dModel}. 
         These vectors represent the semantic meaning of each word in a continuous space.
       </p>
 
@@ -165,8 +196,8 @@ export default function EmbeddingLayer() {
           <div>
             <div className="font-semibold text-purple-300 mb-1">Understanding Embeddings</div>
             <p className="text-purple-200 text-sm mb-2">
-              Each word is now represented as a vector with {CONFIG.dModel} numbers. 
-              Similar words will have similar vectors (though these are simplified random values for demo).
+              Each word is now represented as a vector with {dModel} numbers. 
+              Similar words will have similar vectors.
             </p>
             <div className="bg-slate-700/50 rounded px-3 py-2 font-mono text-xs text-slate-300">
               <div className="mb-1">In real transformers:</div>

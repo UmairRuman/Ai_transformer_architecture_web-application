@@ -13,12 +13,16 @@ export const useVisualizationStore = create((set) => ({
   embeddings: [],
   positionEncodings: [],
   finalInputVectors: [],
+  attentionOutputs: [],
+  normalizedOutputs: [],
+  feedForwardOutputs: [],
   
   // Animation state
   currentStep: 'idle',
   isPlaying: false,
   animationSpeed: 1,
   isPaused: false,
+  hasStarted: false, // Track if animation has ever started
   
   // Deep dive state
   activeComponent: null,
@@ -51,11 +55,12 @@ export const useVisualizationStore = create((set) => ({
   
   setCurrentStep: (step) => set({ currentStep: step }),
   
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
+  setIsPlaying: (playing) => set({ isPlaying: playing, hasStarted: true }),
   
   togglePlay: () => set((state) => ({ 
     isPlaying: !state.isPlaying,
-    isPaused: state.isPlaying ? !state.isPaused : false
+    isPaused: !state.isPlaying ? false : !state.isPaused,
+    hasStarted: true
   })),
   
   pauseAnimation: () => set({ isPaused: true, isPlaying: false }),
@@ -85,6 +90,7 @@ export const useVisualizationStore = create((set) => ({
     currentStep: 'idle',
     isPlaying: false,
     isPaused: false,
+    hasStarted: false,
     activeComponent: null,
     showIntuition: false,
     intuitionContent: null,

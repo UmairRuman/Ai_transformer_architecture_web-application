@@ -34,3 +34,6 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+Its amazing now position encoding is also working , one thing to do that we have to take the  number of dimension as input on the user page which should be less than 6 so that we can show the things easily to give intuition of dry run and also update the showing vectors with dimension in the embedding , postional encoding and self attention ?
