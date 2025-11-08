@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Zap, ChevronRight } from 'lucide-react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { TIMINGS } from '@/lib/constants';
-import Vector from '@/components/shared/Vector';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { TIMINGS } from '../shared/Vector';
+import Vector from '../shared/Vector';
 import {
   createQKVMatrices,
   calculateAttentionScores,
   applySoftmax,
   calculateAttentionOutput,
   dotProduct
-} from '@/lib/transformerLogic';
+} from '../../lib/transformerLogic';
 
 // Intuition Modal Component
 const IntuitionModal = ({ type, onClose }) => {
@@ -156,6 +156,19 @@ export default function AttentionBlock() {
   const numHeads = config?.numHeads || 2;
   const dK = dModel / numHeads;
 
+  useEffect(() => {
+  // When the attention calculation for ALL tokens is complete...
+  if (currentPhase === 'complete' && attentionResults.length > 0) {
+    console.log('Attention phase complete. Setting final outputs to the store.');
+    
+    // 1. Extract the final output vector from each token's result
+    const finalOutputs = attentionResults.map(result => result.output);
+    
+    // 2. Save this array of vectors to our global store
+    setAttentionOutputs(finalOutputs);
+  }
+}, [currentPhase, attentionResults, setAttentionOutputs]);
+
   // Initialize QKV matrices
   useEffect(() => {
     if (!finalInputVectors || finalInputVectors.length === 0 || currentStep !== 'attention') return;
@@ -185,36 +198,48 @@ export default function AttentionBlock() {
   }, [finalInputVectors, currentStep, dModel, dK]);
 
   // Animation logic
-  useEffect(() => {
-    if (!containerRef.current || attentionResults.length === 0 || !isPlaying) return;
+// The new, improved animation useEffect
+useEffect(() => {
+  // Don't run the animation logic if paused or not the active step
+  if (!isPlaying || currentStep !== 'attention' || attentionResults.length === 0) {
+    return;
+  }
 
-    const phaseDurations = {
-      qkv: 2000,
-      scores: 2500,
-      softmax: 2000,
-      output: 1500
-    };
+  const phaseDurations = {
+    qkv: 2000,
+    scores: 2500,
+    softmax: 2000,
+    output: 1500
+  };
 
-    const timer = setTimeout(() => {
-      const phases = ['qkv', 'scores', 'softmax', 'output'];
-      const currentIdx = phases.indexOf(currentPhase);
-      
-      if (currentIdx < phases.length - 1) {
-        setCurrentPhase(phases[currentIdx + 1]);
+  const timer = setTimeout(() => {
+    // Double-check isPlaying here to respect the pause button
+    if (!useVisualizationStore.getState().isPlaying) return;
+
+    const phases = ['qkv', 'scores', 'softmax', 'output'];
+    const currentPhaseIndex = phases.indexOf(currentPhase);
+
+    if (currentPhaseIndex < phases.length - 1) {
+      // Move to the next phase for the current token
+      setCurrentPhase(phases[currentPhaseIndex + 1]);
+    } else {
+      // We've finished all phases for the current token
+      if (currentTokenIdx < tokens.length - 1) {
+        // Move to the next token and reset to the first phase
+        setCurrentTokenIdx(prev => prev + 1);
+        setCurrentPhase('qkv');
       } else {
-        // Move to next token or complete
-        if (currentTokenIdx < tokens.length - 1) {
-          setCurrentTokenIdx(prev => prev + 1);
-          setCurrentPhase('qkv');
-        } else {
-          setCurrentPhase('complete');
-          setIsPlaying(false);
-        }
+        // All tokens are done, complete the step
+        setCurrentPhase('complete');
+        setIsPlaying(false); // Stop the auto-play
       }
-    }, phaseDurations[currentPhase] / animationSpeed);
+    }
+  }, phaseDurations[currentPhase] / animationSpeed);
 
-    return () => clearTimeout(timer);
-  }, [currentPhase, currentTokenIdx, tokens.length, isPlaying, animationSpeed, attentionResults.length, setIsPlaying]);
+  // Cleanup function to clear the timer if the component unmounts or dependencies change
+  return () => clearTimeout(timer);
+
+}, [currentStep, currentPhase, currentTokenIdx, isPlaying, animationSpeed, attentionResults, tokens.length, setIsPlaying]);
 
   if (currentStep !== 'attention' || attentionResults.length === 0) return null;
 

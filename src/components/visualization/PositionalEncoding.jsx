@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { getPositionalEncoding, addVectors } from '@/lib/transformerLogic';
-import { TIMINGS } from '@/lib/constants';
-import Vector from '@/components/shared/Vector';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { getPositionalEncoding, addVectors } from '../../lib/transformerLogic';
+import { TIMINGS } from '../../lib/constants';
+import Vector from '../shared/Vector';
 
 export default function PositionalEncoding() {
   const { 
@@ -18,7 +18,8 @@ export default function PositionalEncoding() {
     currentStep, 
     isPlaying, 
     animationSpeed,
-    config 
+    config , 
+    setCurrentStep
   } = useVisualizationStore();
   
   const containerRef = useRef(null);
@@ -38,7 +39,7 @@ export default function PositionalEncoding() {
       addVectors(embedding, newPositionEncodings[idx])
     );
     setFinalInputVectors(newFinalVectors);
-  }, [embeddings, dModel, setPositionEncodings, setFinalInputVectors]);
+  }, [embeddings, dModel, setPositionEncodings, setFinalInputVectors  ]);
 
   // Create and manage animation timeline
   useEffect(() => {
@@ -52,7 +53,11 @@ export default function PositionalEncoding() {
     // Create new timeline
     const tl = gsap.timeline({ 
       paused: true,
-      timeScale: animationSpeed 
+      timeScale: animationSpeed ,
+        onComplete: () => {
+      console.log('PositionalEncoding animation complete. Advancing to attention.');
+      setCurrentStep('attention');
+    }
     });
     timelineRef.current = tl;
 
@@ -133,7 +138,7 @@ export default function PositionalEncoding() {
         timelineRef.current.kill();
       }
     };
-  }, [positionEncodings, currentStep, animationSpeed]);
+  }, [positionEncodings, currentStep, animationSpeed , setCurrentStep]);
 
   // Handle play/pause toggle
   useEffect(() => {

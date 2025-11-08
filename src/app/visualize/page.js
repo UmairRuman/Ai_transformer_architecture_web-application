@@ -3,15 +3,15 @@
 import { useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Home } from 'lucide-react';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { tokenize } from '@/lib/transformerLogic';
-import AnimationControls from '@/components/shared/AnimationControls';
-import TokenDisplay from '@/components/visualization/TokenDisplay';
-import EmbeddingLayer from '@/components/visualization/EmbeddingLayer';
-import PositionalEncoding from '@/components/visualization/PositionalEncoding';
-import AttentionBlock from '@/components/visualization/AttentionBlock';
-import AddNorm from '@/components/visualization/AddNorm';
-import FeedForward from '@/components/visualization/FeedForward';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { tokenize } from '../../lib/transformerLogic';
+import AnimationControls from '../../components/shared/AnimationControls';
+import TokenDisplay from '../../components/visualization/TokenDisplay';
+import EmbeddingLayer from '../../components/visualization/EmbeddingLayer';
+import PositionalEncoding from '../../components/visualization/PositionalEncoding';
+import AttentionBlock from '../../components/visualization/AttentionBlock';
+import AddNorm from '../../components/visualization/AddNorm';
+import FeedForward from '../../components/visualization/FeedForward';
 
 function VisualizeContent() {
   const router = useRouter();
@@ -30,7 +30,14 @@ function VisualizeContent() {
     isPlaying,
     setIsPlaying,
     resetVisualization,
-    setConfig
+   
+    setConfig, 
+    finalInputVectors,
+  attentionOutputs,
+  addNormOutputs1,
+  feedForwardOutputs , 
+  animationSpeed,
+   encoderOutputs
   } = useVisualizationStore();
 
   useEffect(() => {
@@ -54,42 +61,50 @@ function VisualizeContent() {
     }
   }, [sentence, dimension, numHeads, setInputSentence, setTokens, setCurrentStep, setIsPlaying, resetVisualization, setConfig]);
 
-  // Auto-progress through steps - FIX: Use tokens from store
-  useEffect(() => {
-    if (!isPlaying || !tokens || tokens.length === 0) return;
-
-    let timer;
-    const tokensCount = tokens.length;
-    const stepDurations = {
-      tokenizing: 2000 + (tokensCount * 1000),
-      embedding: 2000 + (tokensCount * 2000),
-      positional: 2000 + (tokensCount * 2000),
-      attention: 5000 + (tokensCount * 5000)
-    };
-
-    const duration = stepDurations[currentStep];
-    
-    if (duration) {
-      timer = setTimeout(() => {
-        const steps = ['tokenizing', 'embedding', 'positional', 'attention', 'addnorm', 'feedforward'];
-        const currentIndex = steps.indexOf(currentStep);
-        
-        if (currentIndex < steps.length - 1) {
-          setTimeout(() => {
-            setCurrentStep(steps[currentIndex + 1]);
-          }, 500);
-        } else {
-          // Animation complete
-          setIsPlaying(false);
-        }
-      }, duration);
+ // This effect is now responsible for advancing to the next step
+useEffect(() => {
+  // A function to advance to the next step
+  const advanceStep = (nextStep) => {
+    console.log(`Advancing from ${currentStep} to ${nextStep}`);
+    setCurrentStep(nextStep);
+    // Ensure play is active for the next component's animation
+    if (!isPlaying) {
+      setIsPlaying(true);
     }
+  };
 
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [currentStep, isPlaying, tokens, setCurrentStep, setIsPlaying]);
-
+  // The first 3 steps ('tokenizing', 'embedding', 'positional') now handle their own advancement
+  // via their animation's onComplete callback. This controller only handles the rest.
+  switch (currentStep) {
+    case 'attention':
+      // Advance when the attention block has produced its output data
+      if (attentionOutputs.length > 0) advanceStep('addnorm');
+      break;
+    case 'addnorm':
+      // Advance when the Add & Norm block has produced its output data
+      if (addNormOutputs1.length > 0) advanceStep('feedforward');
+      break;
+    case 'feedforward':
+      // When the FFN has produced the final encoder output, the sequence is done
+      // NOTE: We need to get encoderOutputs from the store for this to work
+      if (encoderOutputs.length > 0) {
+        console.log('All encoder steps complete.');
+        setIsPlaying(false); // Stop the animation
+      }
+      break;
+    default:
+      // Do nothing for 'tokenizing', 'embedding', 'positional' as they handle themselves
+      break;
+  }
+}, [
+  currentStep, 
+  attentionOutputs, 
+  addNormOutputs1,
+  encoderOutputs, // Make sure to add this
+  isPlaying,
+  setCurrentStep, 
+  setIsPlaying
+]);
   const handleReset = () => {
     resetVisualization();
     router.push('/');
@@ -193,12 +208,20 @@ function VisualizeContent() {
       <div className="container mx-auto px-6 py-8">
         <div className="bg-slate-800/30 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-8 shadow-2xl">
           <div className="space-y-12">
-            <TokenDisplay />
-            <EmbeddingLayer />
-            <PositionalEncoding />
-            <AttentionBlock />
-            <AddNorm />
-            <FeedForward />
+             {/* Show Tokenization Step */}
+  {currentStep === 'tokenizing' && <TokenDisplay />}
+           {/* Show Embedding Step */}
+  {currentStep === 'embedding' && <EmbeddingLayer />}
+
+           {/* Show Positional Encoding Step */}
+  {currentStep === 'positional' && <PositionalEncoding />}
+
+            {/* Show Attention Step */}
+  {currentStep === 'attention' && <AttentionBlock />}
+            {/* Show Add & Norm Step */}
+  {currentStep === 'addnorm' && <AddNorm />}
+           {/* Show Feed Forward Step */}
+  {currentStep === 'feedforward' && <FeedForward />}
 
             {showCompletion && (
               <div className="text-center py-12">

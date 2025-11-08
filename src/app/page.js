@@ -3,16 +3,25 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowRight, Zap, Brain, Target, Settings } from 'lucide-react';
-import HeroAnimation from '@/components/landing/HeroAnimation';
-import { CONFIG } from '@/lib/constants';
+import HeroAnimation from '../components/landing/HeroAnimation';
+import { CONFIG } from '../lib/constants';
 
 export default function Home() {
   const router = useRouter();
   const [inputSentence, setInputSentence] = useState('');
   const [dimension, setDimension] = useState(6);
   const [numHeads, setNumHeads] = useState(2);
+  const [targetLanguage, setTargetLanguage] = useState('french');
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const languages = [
+    { code: 'french', name: 'French', flag: '🇫🇷' },
+    { code: 'spanish', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'german', name: 'German', flag: '🇩🇪' },
+    { code: 'italian', name: 'Italian', flag: '🇮🇹' },
+    { code: 'portuguese', name: 'Portuguese', flag: '🇵🇹' }
+  ];
 
   const handleVisualize = () => {
     const cleanedSentence = inputSentence.trim().replace(/\s+/g, ' ');

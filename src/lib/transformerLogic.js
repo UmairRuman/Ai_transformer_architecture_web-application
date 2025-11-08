@@ -242,4 +242,4 @@ export function relu(x) {
 // Apply ReLU to vector
 export function reluVector(vector) {
   return vector.map(v => relu(v));
-}
+}     

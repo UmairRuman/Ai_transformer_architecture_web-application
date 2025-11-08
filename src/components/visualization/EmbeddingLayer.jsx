@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { getEmbedding } from '@/lib/transformerLogic';
-import { TIMINGS, CONFIG } from '@/lib/constants';
-import Vector from '@/components/shared/Vector';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { getEmbedding } from '../../lib/transformerLogic';
+import { TIMINGS, CONFIG } from '../../lib/constants';
+import Vector from '../shared/Vector';
 
 export default function EmbeddingLayer() {
   const { 
@@ -15,7 +15,8 @@ export default function EmbeddingLayer() {
     currentStep, 
     isPlaying, 
     animationSpeed,
-    config 
+    config , 
+    setCurrentStep
   } = useVisualizationStore();
   
   const containerRef = useRef(null);
@@ -28,7 +29,7 @@ export default function EmbeddingLayer() {
 
     const newEmbeddings = tokens.map(token => getEmbedding(token, dModel));
     setEmbeddings(newEmbeddings);
-  }, [tokens, dModel, setEmbeddings]);
+  }, [tokens, dModel, setEmbeddings ]);
 
   // Create and manage animation timeline
   useEffect(() => {
@@ -42,7 +43,11 @@ export default function EmbeddingLayer() {
     // Create new timeline
     const tl = gsap.timeline({ 
       paused: true,
-      timeScale: animationSpeed 
+      timeScale: animationSpeed ,
+         onComplete: () => {
+      console.log('EmbeddingLayer animation complete. Advancing to positional.');
+      setCurrentStep('positional');
+    }
     });
     timelineRef.current = tl;
 
@@ -94,7 +99,7 @@ export default function EmbeddingLayer() {
         timelineRef.current.kill();
       }
     };
-  }, [embeddings, currentStep, animationSpeed]);
+  }, [embeddings, currentStep, animationSpeed ,setCurrentStep]);
 
   // Handle play/pause toggle
   useEffect(() => {

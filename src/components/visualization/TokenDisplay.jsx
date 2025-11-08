@@ -2,11 +2,11 @@
 
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { TIMINGS } from '@/lib/constants';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { TIMINGS } from '../../lib/constants';
 
 export default function TokenDisplay() {
-  const { inputSentence, tokens, currentStep, isPlaying, animationSpeed, hasStarted } = useVisualizationStore();
+  const { inputSentence, tokens, currentStep, isPlaying, animationSpeed, hasStarted , setCurrentStep} = useVisualizationStore();
   const containerRef = useRef(null);
   const sentenceRef = useRef(null);
   const tokenRefs = useRef([]);
@@ -18,7 +18,11 @@ export default function TokenDisplay() {
     // Create timeline
     const tl = gsap.timeline({ 
       paused: true,
-      timeScale: animationSpeed 
+      timeScale: animationSpeed ,
+      onComplete: () => {
+      console.log('TokenDisplay animation complete. Advancing to embedding.');
+      setCurrentStep('embedding');
+    }
     });
     timelineRef.current = tl;
 
@@ -72,7 +76,7 @@ export default function TokenDisplay() {
         timelineRef.current.kill();
       }
     };
-  }, [tokens, currentStep, isPlaying, animationSpeed]);
+  }, [tokens, currentStep, isPlaying, animationSpeed , setCurrentStep]);
 
   // Update timeline speed when animationSpeed changes
   useEffect(() => {

@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Zap, Plus, TrendingUp } from 'lucide-react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { TIMINGS } from '@/lib/constants';
-import Vector from '@/components/shared/Vector';
-import { addVectors, layerNorm } from '@/lib/transformerLogic';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { TIMINGS } from '../../lib/constants';
+import Vector from '../shared/Vector';
+import { addVectors, layerNorm } from '../../lib/transformerLogic';
 
 // Intuition Modal
 const IntuitionModal = ({ type, onClose }) => {
@@ -72,13 +72,12 @@ export default function AddNorm() {
   const {
     tokens = [],
     finalInputVectors = [],
+    attentionOutputs = [],
     currentStep,
     isPlaying,
     animationSpeed,
     config,
-    hasStarted,
-    attentionOutputs = [],
-    setNormalizedOutputs
+    setAddNormOutputs1,
   } = useVisualizationStore();
 
   const [currentTokenIdx, setCurrentTokenIdx] = useState(0);
@@ -90,34 +89,54 @@ export default function AddNorm() {
   const containerRef = useRef(null);
   const dModel = config?.dModel || 6;
 
-  // Calculate residual and normalized outputs
+  // --- FIX #1: Calculation Only ---
+  // This effect now ONLY calculates and sets LOCAL state.
+  // It no longer signals completion to the main app.
   useEffect(() => {
-    if (!finalInputVectors || finalInputVectors.length === 0 || !attentionOutputs || attentionOutputs.length === 0) return;
+    if (finalInputVectors.length === 0 || attentionOutputs.length === 0) return;
 
-    // Residual: original input + attention output
-    const residuals = finalInputVectors.map((input, idx) => 
-      addVectors(input, attentionOutputs[idx] || input)
+    const residuals = finalInputVectors.map((input, idx) =>
+      addVectors(input, attentionOutputs[idx] || Array(dModel).fill(0))
     );
     setResidualOutputs(residuals);
 
-    // Layer Norm
     const normalized = residuals.map(vec => layerNorm(vec));
     setLocalNormalizedOutputs(normalized);
-    setNormalizedOutputs(normalized);
-  }, [finalInputVectors, attentionOutputs, setNormalizedOutputs]);
 
-  // Animation progression
+    // We REMOVED setAddNormOutputs1(normalized) from here.
+    
+  // --- FIX #2: Corrected Dependency Array ---
+  }, [finalInputVectors, attentionOutputs, dModel]);
+
+
+  // --- FIX #3: Animation and Completion Signal ---
+  // This effect now controls the animation AND signals completion at the end.
   useEffect(() => {
-    if (!isPlaying || currentStep !== 'addnorm') return;
+    if (!isPlaying || currentStep !== 'addnorm' || tokens.length === 0) return;
 
     const timer = setTimeout(() => {
       if (currentTokenIdx < tokens.length - 1) {
+        // Advance to the next token for visualization
         setCurrentTokenIdx(prev => prev + 1);
+      } else {
+        // --- THIS IS THE NEW LOGIC ---
+        // We have finished animating all tokens. NOW we can signal completion.
+        console.log('Add & Norm animation complete. Setting final outputs.');
+        setAddNormOutputs1(normalizedOutputs);
       }
-    }, 3000 / animationSpeed);
+    }, 2000 / animationSpeed); // Simplified duration for each token step
 
     return () => clearTimeout(timer);
-  }, [isPlaying, currentTokenIdx, tokens.length, animationSpeed, currentStep]);
+  }, [
+    isPlaying, 
+    currentStep, 
+    currentTokenIdx, 
+    tokens.length, 
+    animationSpeed, 
+    setAddNormOutputs1,
+    normalizedOutputs // Add this dependency
+  ]);
+
 
   if (currentStep !== 'addnorm' || residualOutputs.length === 0) return null;
 

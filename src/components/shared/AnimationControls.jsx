@@ -1,7 +1,7 @@
 'use client';
 
 import { Play, Pause, RotateCcw, Gauge, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useVisualizationStore } from '@/store/visualizationStore';
+import { useVisualizationStore } from '../../store/visualizationStore';
 
 export default function AnimationControls() {
   const {
@@ -22,7 +22,7 @@ export default function AnimationControls() {
     { value: 2, label: '2x' }
   ];
 
-  const steps = ['tokenizing', 'embedding', 'positional', 'attention'];
+  const steps = ['tokenizing', 'embedding', 'positional', 'attention' , 'addnorm' , 'feedforward'];
   const currentIndex = steps.indexOf(currentStep);
   const isFirstStep = currentIndex === 0 || currentStep === 'idle';
   const isLastStep = currentIndex === steps.length - 1;

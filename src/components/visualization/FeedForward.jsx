@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Zap, ArrowRight } from 'lucide-react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { TIMINGS } from '@/lib/constants';
-import Vector from '@/components/shared/Vector';
-import { matrixVectorMultiply, reluVector, generateWeightMatrix, addVectors, layerNorm } from '@/lib/transformerLogic';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { TIMINGS } from '../shared/Vector';
+import Vector from '../shared/Vector';
+import { matrixVectorMultiply, reluVector, generateWeightMatrix, addVectors, layerNorm } from '../../lib/transformerLogic';
 
 // Intuition Modal
 const IntuitionModal = ({ type, onClose }) => {
@@ -82,51 +82,47 @@ const IntuitionModal = ({ type, onClose }) => {
 export default function FeedForward() {
   const {
     tokens = [],
-    normalizedOutputs = [],
+     addNormOutputs1: normalizedOutputs = [], 
     currentStep,
     isPlaying,
     animationSpeed,
     config,
     hasStarted,
-    setFeedForwardOutputs
+    setFeedForwardOutputs , 
+    setEncoderOutputs 
   } = useVisualizationStore();
 
-  const [currentTokenIdx, setCurrentTokenIdx] = useState(0);
+ const [currentTokenIdx, setCurrentTokenIdx] = useState(0);
   const [showIntuition, setShowIntuition] = useState('');
   const [hiddenStates, setHiddenStates] = useState([]);
   const [ffOutputs, setFfOutputs] = useState([]);
-  const [finalFFOutputs, setFinalFFOutputs] = useState([]);
+  const [finalOutputs, setFinalOutputs] = useState([]); // Renamed for clarity
   const [showCalculations, setShowCalculations] = useState(false);
 
   const containerRef = useRef(null);
   const dModel = config?.dModel || 6;
-  const dFF = dModel * 4; // Typical expansion factor
+  const dFF = dModel * 4;
 
-  // Generate weight matrices
   const [W1] = useState(() => generateWeightMatrix(dFF, dModel));
   const [W2] = useState(() => generateWeightMatrix(dModel, dFF));
 
-  // Calculate feed-forward outputs
+  // --- FIX #3: Calculation Only ---
+  // This effect now ONLY calculates and sets LOCAL state.
   useEffect(() => {
-    if (!normalizedOutputs || normalizedOutputs.length === 0) return;
+    if (normalizedOutputs.length === 0) return;
 
     const hidden = [];
     const outputs = [];
     const finals = [];
 
-    normalizedOutputs.forEach((input, idx) => {
-      // First linear transformation
+    normalizedOutputs.forEach((input) => {
       const h = matrixVectorMultiply(W1, input);
       hidden.push(h);
-
-      // ReLU activation
       const hRelu = reluVector(h);
-
-      // Second linear transformation
       const output = matrixVectorMultiply(W2, hRelu);
       outputs.push(output);
-
-      // Residual + LayerNorm
+      
+      // The second Add & Norm layer
       const residual = addVectors(input, output);
       const normalized = layerNorm(residual);
       finals.push(normalized);
@@ -134,22 +130,39 @@ export default function FeedForward() {
 
     setHiddenStates(hidden);
     setFfOutputs(outputs);
-    setFinalFFOutputs(finals);
-    setFeedForwardOutputs(finals);
-  }, [normalizedOutputs, W1, W2, setFeedForwardOutputs]);
+    setFinalOutputs(finals);
+    
+    // We REMOVED the call to the global setter from here.
 
-  // Animation progression
+  }, [normalizedOutputs, W1, W2]);
+
+
+  // --- FIX #4: Animation and Completion Signal ---
+  // This effect now controls the animation AND signals completion at the end.
   useEffect(() => {
-    if (!isPlaying || currentStep !== 'feedforward') return;
+    if (!isPlaying || currentStep !== 'feedforward' || tokens.length === 0) return;
 
     const timer = setTimeout(() => {
       if (currentTokenIdx < tokens.length - 1) {
         setCurrentTokenIdx(prev => prev + 1);
+      } else {
+        // We have finished animating all tokens. NOW we can signal completion.
+        console.log('FeedForward animation complete. Setting final encoder outputs.');
+        // We set the FINAL output of the entire encoder block
+        setEncoderOutputs(finalOutputs); 
       }
-    }, 4000 / animationSpeed);
+    }, 3000 / animationSpeed);
 
     return () => clearTimeout(timer);
-  }, [isPlaying, currentTokenIdx, tokens.length, animationSpeed, currentStep]);
+  }, [
+    isPlaying, 
+    currentStep, 
+    currentTokenIdx, 
+    tokens.length, 
+    animationSpeed, 
+    setEncoderOutputs,
+    finalOutputs // Add this dependency
+  ]);
 
   if (currentStep !== 'feedforward' || ffOutputs.length === 0) return null;
 
@@ -364,7 +377,7 @@ export default function FeedForward() {
               />
               <div className="text-2xl text-slate-500">=</div>
               <Vector 
-                values={finalFFOutputs[currentTokenIdx]} 
+                values={finalOutputs[currentTokenIdx]} 
                 label="Final"
                 color="#06B6D4"
                 showValues={true}
