@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Zap, ArrowRight, Link } from 'lucide-react';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import Vector from '@/components/shared/Vector';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import Vector from '../shared/Vector';
 import {
   generateWeightMatrix,
   matrixVectorMultiply,
   calculateAttentionScores,
   applySoftmax,
   calculateAttentionOutput
-} from '@/lib/transformerLogic';
+} from '../../lib/transformerLogic';
 
 // Intuition Modal
 const IntuitionModal = ({ type, onClose }) => {
@@ -74,15 +74,15 @@ const IntuitionModal = ({ type, onClose }) => {
 
 export default function CrossAttention() {
   const {
-    tokens = [],              // Source tokens (encoder)
-    targetTokens = [],        // Target tokens (decoder)
-    encoderOutputs = [],      // Encoder final outputs (K, V source)
-    maskedAttentionOutputs = [], // Decoder masked attention (Q source)
+    tokens = [],                          // Source tokens (encoder)
+    decoderTokens = [],                   // ✅ FIXED: Target tokens (decoder)
+    encoderOutputs = [],                  // Encoder final outputs (K, V source)
+    decoderMaskedAttentionOutputs = [],   // ✅ FIXED: Decoder masked attention (Q source)
     currentStep,
     isPlaying,
     animationSpeed,
     config,
-    setCrossAttentionOutputs,
+    setDecoderCrossAttentionOutputs,      // ✅ FIXED: Correct function name
     setCurrentStep
   } = useVisualizationStore();
 
@@ -100,9 +100,19 @@ export default function CrossAttention() {
 
   // Generate Q from decoder, K,V from encoder
   useEffect(() => {
-    if (!maskedAttentionOutputs || maskedAttentionOutputs.length === 0 || 
+    console.log('CrossAttention - Current step:', currentStep);
+    console.log('CrossAttention - decoderMaskedAttentionOutputs:', decoderMaskedAttentionOutputs);
+    console.log('CrossAttention - encoderOutputs:', encoderOutputs);
+    console.log('CrossAttention - decoderTokens:', decoderTokens);
+    
+    if (!decoderMaskedAttentionOutputs || decoderMaskedAttentionOutputs.length === 0 || 
         !encoderOutputs || encoderOutputs.length === 0 || 
-        currentStep !== 'cross_attention') return;
+        currentStep !== 'decoder_cross_attention') {
+      console.log('CrossAttention - Conditions not met, returning');
+      return;
+    }
+
+    console.log('CrossAttention - Generating Q, K, V matrices...');
 
     // Weight matrices
     const Wq = generateWeightMatrix(dModel, dModel);
@@ -110,7 +120,7 @@ export default function CrossAttention() {
     const Wv = generateWeightMatrix(dModel, dModel);
 
     // Q from decoder (what we're generating)
-    const Q = maskedAttentionOutputs.map(vec => matrixVectorMultiply(Wq, vec));
+    const Q = decoderMaskedAttentionOutputs.map(vec => matrixVectorMultiply(Wq, vec));
     
     // K, V from encoder (source sentence)
     const K = encoderOutputs.map(vec => matrixVectorMultiply(Wk, vec));
@@ -135,27 +145,28 @@ export default function CrossAttention() {
       };
     });
 
+    console.log('CrossAttention - Calculated results:', results);
     setCrossAttentionResults(results);
     setCurrentTokenIdx(0);
     setCurrentPhase('setup');
-  }, [maskedAttentionOutputs, encoderOutputs, currentStep, dModel]);
+  }, [decoderMaskedAttentionOutputs, encoderOutputs, currentStep, dModel, decoderTokens]);
 
   // Save outputs when complete
   useEffect(() => {
     if (currentPhase === 'complete' && crossAttentionResults.length > 0) {
       console.log('Cross-Attention complete. Setting outputs.');
       const finalOutputs = crossAttentionResults.map(r => r.output);
-      setCrossAttentionOutputs(finalOutputs);
+      setDecoderCrossAttentionOutputs(finalOutputs);
       
       setTimeout(() => {
-        setCurrentStep('decoder_addnorm');
+        setCurrentStep('decoder_addnorm2'); // ✅ FIXED: Correct next step
       }, 1000);
     }
-  }, [currentPhase, crossAttentionResults, setCrossAttentionOutputs, setCurrentStep]);
+  }, [currentPhase, crossAttentionResults, setDecoderCrossAttentionOutputs, setCurrentStep]);
 
   // Animation logic
   useEffect(() => {
-    if (!isPlaying || currentStep !== 'cross_attention' || crossAttentionResults.length === 0) return;
+    if (!isPlaying || currentStep !== 'decoder_cross_attention' || crossAttentionResults.length === 0) return;
 
     const phaseDurations = {
       setup: 2000,
@@ -165,7 +176,8 @@ export default function CrossAttention() {
     };
 
     const timer = setTimeout(() => {
-      if (!useVisualizationStore.getState().isPlaying) return;
+      const state = useVisualizationStore.getState();
+      if (!state.isPlaying) return;
 
       const phases = ['setup', 'scores', 'softmax', 'output'];
       const currentPhaseIndex = phases.indexOf(currentPhase);
@@ -173,7 +185,7 @@ export default function CrossAttention() {
       if (currentPhaseIndex < phases.length - 1) {
         setCurrentPhase(phases[currentPhaseIndex + 1]);
       } else {
-        if (currentTokenIdx < targetTokens.length - 1) {
+        if (currentTokenIdx < decoderTokens.length - 1) {
           setCurrentTokenIdx(prev => prev + 1);
           setCurrentPhase('setup');
         } else {
@@ -183,12 +195,23 @@ export default function CrossAttention() {
     }, phaseDurations[currentPhase] / animationSpeed);
 
     return () => clearTimeout(timer);
-  }, [currentStep, currentPhase, currentTokenIdx, isPlaying, animationSpeed, crossAttentionResults, targetTokens.length]);
+  }, [currentStep, currentPhase, currentTokenIdx, isPlaying, animationSpeed, crossAttentionResults, decoderTokens]);
 
-  if (currentStep !== 'cross_attention' || crossAttentionResults.length === 0) return null;
+  console.log('CrossAttention - Render check:', {
+    currentStep,
+    crossAttentionResultsLength: crossAttentionResults.length,
+    shouldRender: currentStep === 'decoder_cross_attention' && crossAttentionResults.length > 0
+  });
+
+  if (currentStep !== 'decoder_cross_attention' || crossAttentionResults.length === 0) {
+    console.log('CrossAttention - Not rendering');
+    return null;
+  }
+
+  console.log('CrossAttention - RENDERING!');
 
   const currentResult = crossAttentionResults[currentTokenIdx];
-  const currentTargetToken = targetTokens[currentTokenIdx];
+  const currentTargetToken = decoderTokens[currentTokenIdx];
 
   return (
     <div className="space-y-6">
@@ -196,11 +219,11 @@ export default function CrossAttention() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <h2 className="text-2xl font-bold text-white">Decoder Step 2: Cross-Attention (Encoder↔Decoder)</h2>
+          <h2 className="text-2xl font-bold text-white">Decoder Step 6: Cross-Attention (Encoder↔Decoder)</h2>
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-cyan-500/20 px-3 py-1 rounded border border-cyan-400/50 text-sm">
-            <span className="text-cyan-300">Target: {currentTokenIdx + 1}/{targetTokens.length}</span>
+            <span className="text-cyan-300">Target: {currentTokenIdx + 1}/{decoderTokens.length}</span>
           </div>
           <button
             onClick={() => setShowCalculations(!showCalculations)}
@@ -218,7 +241,7 @@ export default function CrossAttention() {
           <div>
             <div className="font-bold text-cyan-300 text-lg mb-1">Encoder-Decoder Information Flow</div>
             <p className="text-cyan-200 text-sm">
-              Generating target token "<span className="font-mono font-bold">{currentTargetToken}</span>". 
+              Generating target token "<span className="font-mono font-bold">{currentTargetToken === '<START>' ? '⏵' : currentTargetToken}</span>". 
               Query from decoder, Keys & Values from <strong>encoder</strong> (source: {tokens.join(', ')}).
               This determines which source words are relevant!
             </p>
@@ -237,7 +260,9 @@ export default function CrossAttention() {
               <div className="text-center space-y-2">
                 <div className="text-sm text-cyan-300 font-semibold">DECODER</div>
                 <div className="bg-cyan-500/30 rounded-lg p-4 border-2 border-cyan-400">
-                  <div className="font-mono text-white font-bold">{currentTargetToken}</div>
+                  <div className="font-mono text-white font-bold">
+                    {currentTargetToken === '<START>' ? '⏵' : currentTargetToken}
+                  </div>
                   <div className="text-xs text-cyan-200 mt-1">(Current Target)</div>
                 </div>
                 <ArrowRight className="w-6 h-6 text-cyan-400 mx-auto" />
@@ -353,7 +378,7 @@ export default function CrossAttention() {
                 ))}
               </div>
               <div className="text-center text-xs text-orange-400">
-                Higher score = more relevant for generating "{currentTargetToken}"
+                Higher score = more relevant for generating "{currentTargetToken === '<START>' ? '⏵' : currentTargetToken}"
               </div>
             </div>
           )}
@@ -374,8 +399,9 @@ export default function CrossAttention() {
               
               <div className="bg-slate-800/50 rounded-lg p-6">
                 <div className="text-center text-sm text-green-300 mb-4">
-                  When generating "<span className="font-mono font-bold">{currentTargetToken}</span>", 
-                  attention to source words:
+                  When generating "<span className="font-mono font-bold">
+                    {currentTargetToken === '<START>' ? '⏵' : currentTargetToken}
+                  </span>", attention to source words:
                 </div>
                 <div className="flex items-center justify-center gap-4 flex-wrap">
                   {tokens.map((token, idx) => {
@@ -415,14 +441,14 @@ export default function CrossAttention() {
               <div className="flex flex-col items-center gap-4">
                 <Vector 
                   values={currentResult.output} 
-                  label={`CrossAttn(${currentTargetToken})`}
+                  label={`CrossAttn(${currentTargetToken === '<START>' ? 'START' : currentTargetToken})`}
                   color="#10B981"
                   showValues={true}
                   size="large"
                 />
                 <div className="text-center text-sm text-green-300 bg-green-500/10 rounded-lg px-4 py-2 max-w-2xl">
                   ✨ This vector contains information from the source sentence, 
-                  weighted by relevance to generating "{currentTargetToken}"!
+                  weighted by relevance to generating "{currentTargetToken === '<START>' ? '⏵' : currentTargetToken}"!
                 </div>
               </div>
             </div>

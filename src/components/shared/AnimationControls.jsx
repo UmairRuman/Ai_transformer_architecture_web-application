@@ -22,7 +22,15 @@ export default function AnimationControls() {
     { value: 2, label: '2x' }
   ];
 
-  const steps = ['tokenizing', 'embedding', 'positional', 'attention' , 'addnorm' , 'feedforward'];
+  // All 17 steps (encoder + decoder)
+  const steps = [
+    'tokenizing', 'embedding', 'positional', 'attention', 'addnorm', 'feedforward',
+    'decoder_start', 'decoder_embedding', 'decoder_positional',
+    'decoder_masked_attention', 'decoder_addnorm1',
+    'decoder_cross_attention', 'decoder_addnorm2',
+    'decoder_ffn', 'output_projection', 'translation_complete'
+  ];
+  
   const currentIndex = steps.indexOf(currentStep);
   const isFirstStep = currentIndex === 0 || currentStep === 'idle';
   const isLastStep = currentIndex === steps.length - 1;

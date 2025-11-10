@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Zap, BookOpen, Rocket, AlertCircle } from 'lucide-react';
-import { useVisualizationStore } from '@/store/visualizationStore';
+import { useVisualizationStore } from '../../store/visualizationStore';
 
 export default function DecoderModeSelector() {
   const { currentStep, setCurrentStep } = useVisualizationStore();

@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Zap, Eye, EyeOff } from 'lucide-react';
 import gsap from 'gsap';
-import { useVisualizationStore } from '@/store/visualizationStore';
-import { TIMINGS } from '@/lib/constants';
-import Vector from '@/components/shared/Vector';
+import { useVisualizationStore } from '../../store/visualizationStore';
+import { TIMINGS } from '../../lib/constants';
+import Vector from '../shared/Vector';
 import {
   createQKVMatrices,
   calculateAttentionScores,
   applySoftmax,
   calculateAttentionOutput
-} from '@/lib/transformerLogic';
+} from '../../lib/transformerLogic';
 
 // Intuition Modal
 const IntuitionModal = ({ type, onClose }) => {
@@ -86,7 +86,7 @@ const AttentionMatrix = ({ tokens, currentTokenIdx, attentionWeights, showMask }
             <th className="p-2 text-xs text-slate-500"></th>
             {tokens.map((token, idx) => (
               <th key={idx} className="p-2 text-xs text-slate-300 font-mono">
-                {token}
+                {token === '<START>' ? '⏵' : token}
               </th>
             ))}
           </tr>
@@ -95,7 +95,7 @@ const AttentionMatrix = ({ tokens, currentTokenIdx, attentionWeights, showMask }
           {tokens.map((rowToken, rowIdx) => (
             <tr key={rowIdx}>
               <td className="p-2 text-xs text-slate-300 font-mono font-semibold">
-                {rowToken}
+                {rowToken === '<START>' ? '⏵' : rowToken}
               </td>
               {tokens.map((colToken, colIdx) => {
                 const isMasked = showMask && colIdx > rowIdx;
@@ -151,13 +151,13 @@ const AttentionMatrix = ({ tokens, currentTokenIdx, attentionWeights, showMask }
 
 export default function MaskedAttention() {
   const {
-    targetTokens = [],
-    targetFinalInputVectors = [],
+    decoderTokens,
+    decoderFinalInputVectors,
     currentStep,
     isPlaying,
     animationSpeed,
     config,
-    setMaskedAttentionOutputs,
+    setDecoderMaskedAttentionOutputs,
     setCurrentStep
   } = useVisualizationStore();
 
@@ -184,9 +184,17 @@ export default function MaskedAttention() {
 
   // Initialize QKV and calculate masked attention
   useEffect(() => {
-    if (!targetFinalInputVectors || targetFinalInputVectors.length === 0 || currentStep !== 'masked_attention') return;
+    console.log('MaskedAttention - Current step:', currentStep);
+    console.log('MaskedAttention - decoderFinalInputVectors:', decoderFinalInputVectors);
+    console.log('MaskedAttention - decoderTokens:', decoderTokens);
     
-    const { Q, K, V } = createQKVMatrices(targetFinalInputVectors, dModel);
+    if (!decoderFinalInputVectors || decoderFinalInputVectors.length === 0 || currentStep !== 'decoder_masked_attention') {
+      console.log('MaskedAttention - Conditions not met, returning');
+      return;
+    }
+    
+    console.log('MaskedAttention - Calculating QKV matrices...');
+    const { Q, K, V } = createQKVMatrices(decoderFinalInputVectors, dModel);
     setQkvMatrices({ Q, K, V });
     
     // Calculate attention with masking for each position
@@ -210,28 +218,29 @@ export default function MaskedAttention() {
       };
     });
     
+    console.log('MaskedAttention - Calculated results:', results);
     setAttentionResults(results);
     setCurrentTokenIdx(0);
     setCurrentPhase('qkv');
-  }, [targetFinalInputVectors, currentStep, dModel, dK]);
+  }, [decoderFinalInputVectors, currentStep, dModel, dK, decoderTokens]);
 
   // Save outputs when complete
   useEffect(() => {
     if (currentPhase === 'complete' && attentionResults.length > 0) {
       console.log('Masked Attention complete. Setting outputs.');
       const finalOutputs = attentionResults.map(r => r.output);
-      setMaskedAttentionOutputs(finalOutputs);
+      setDecoderMaskedAttentionOutputs(finalOutputs);
       
-      // Auto-advance to cross attention
+      // Auto-advance to decoder_addnorm1
       setTimeout(() => {
-        setCurrentStep('cross_attention');
+        setCurrentStep('decoder_addnorm1');
       }, 1000);
     }
-  }, [currentPhase, attentionResults, setMaskedAttentionOutputs, setCurrentStep]);
+  }, [currentPhase, attentionResults, setDecoderMaskedAttentionOutputs, setCurrentStep]);
 
   // Animation logic
   useEffect(() => {
-    if (!isPlaying || currentStep !== 'masked_attention' || attentionResults.length === 0) return;
+    if (!isPlaying || currentStep !== 'decoder_masked_attention' || attentionResults.length === 0) return;
 
     const phaseDurations = {
       qkv: 2000,
@@ -241,7 +250,8 @@ export default function MaskedAttention() {
     };
 
     const timer = setTimeout(() => {
-      if (!useVisualizationStore.getState().isPlaying) return;
+      const state = useVisualizationStore.getState();
+      if (!state.isPlaying) return;
 
       const phases = ['qkv', 'scores', 'softmax', 'output'];
       const currentPhaseIndex = phases.indexOf(currentPhase);
@@ -249,7 +259,7 @@ export default function MaskedAttention() {
       if (currentPhaseIndex < phases.length - 1) {
         setCurrentPhase(phases[currentPhaseIndex + 1]);
       } else {
-        if (currentTokenIdx < targetTokens.length - 1) {
+        if (currentTokenIdx < decoderTokens.length - 1) {
           setCurrentTokenIdx(prev => prev + 1);
           setCurrentPhase('qkv');
         } else {
@@ -259,11 +269,23 @@ export default function MaskedAttention() {
     }, phaseDurations[currentPhase] / animationSpeed);
 
     return () => clearTimeout(timer);
-  }, [currentStep, currentPhase, currentTokenIdx, isPlaying, animationSpeed, attentionResults, targetTokens.length]);
+  }, [currentStep, currentPhase, currentTokenIdx, isPlaying, animationSpeed, attentionResults, decoderTokens]);
 
-  if (currentStep !== 'masked_attention' || attentionResults.length === 0) return null;
+  console.log('MaskedAttention - Render check:', {
+    currentStep,
+    attentionResultsLength: attentionResults.length,
+    decoderTokensLength: decoderTokens.length,
+    shouldRender: currentStep === 'decoder_masked_attention' && attentionResults.length > 0
+  });
 
-  const currentToken = targetTokens[currentTokenIdx];
+  if (currentStep !== 'decoder_masked_attention' || attentionResults.length === 0) {
+    console.log('MaskedAttention - Not rendering');
+    return null;
+  }
+
+  console.log('MaskedAttention - RENDERING!');
+
+  const currentToken = decoderTokens[currentTokenIdx];
   const currentResult = attentionResults[currentTokenIdx];
 
   return (
@@ -272,11 +294,11 @@ export default function MaskedAttention() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-          <h2 className="text-2xl font-bold text-white">Decoder Step 1: Masked Self-Attention</h2>
+          <h2 className="text-2xl font-bold text-white">Decoder Step 4: Masked Self-Attention</h2>
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-red-500/20 px-3 py-1 rounded border border-red-400/50 text-sm">
-            <span className="text-red-300">Token: {currentTokenIdx + 1}/{targetTokens.length}</span>
+            <span className="text-red-300">Token: {currentTokenIdx + 1}/{decoderTokens.length}</span>
           </div>
           <button
             onClick={() => setShowMaskVisualization(!showMaskVisualization)}
@@ -301,8 +323,8 @@ export default function MaskedAttention() {
           <div>
             <div className="font-bold text-red-300 text-lg mb-1">Causal Masking Active</div>
             <p className="text-red-200 text-sm">
-              Token "<span className="font-mono font-bold">{currentToken}</span>" at position {currentTokenIdx} can only attend to positions 0-{currentTokenIdx}. 
-              Future tokens ({currentTokenIdx + 1}-{targetTokens.length - 1}) are <strong>masked out</strong>.
+              Token "<span className="font-mono font-bold">{currentToken === '<START>' ? '⏵' : currentToken}</span>" at position {currentTokenIdx} can only attend to positions 0-{currentTokenIdx}. 
+              Future tokens ({currentTokenIdx + 1}-{decoderTokens.length - 1}) are <strong>masked out</strong>.
             </p>
           </div>
         </div>
@@ -326,7 +348,7 @@ export default function MaskedAttention() {
                 </button>
               </div>
               <AttentionMatrix 
-                tokens={targetTokens}
+                tokens={decoderTokens}
                 currentTokenIdx={currentTokenIdx}
                 attentionWeights={currentResult.weights}
                 showMask={true}
@@ -363,9 +385,9 @@ export default function MaskedAttention() {
                       />
                     ))}
                   </div>
-                  {currentTokenIdx < targetTokens.length - 1 && (
+                  {currentTokenIdx < decoderTokens.length - 1 && (
                     <div className="text-center text-xs text-red-400 mt-2">
-                      🚫 Future keys masked ({targetTokens.length - currentTokenIdx - 1} hidden)
+                      🚫 Future keys masked ({decoderTokens.length - currentTokenIdx - 1} hidden)
                     </div>
                   )}
                 </div>
@@ -407,12 +429,14 @@ export default function MaskedAttention() {
                 <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600">
                   <div className="text-sm font-semibold text-slate-300 mb-3 text-center">Before Masking</div>
                   <div className="space-y-2">
-                    {targetTokens.map((token, idx) => (
+                    {decoderTokens.map((token, idx) => (
                       <div key={idx} className={`
                         flex items-center justify-between p-2 rounded
                         ${idx > currentTokenIdx ? 'bg-red-500/10 border border-red-500/30' : 'bg-slate-700/30'}
                       `}>
-                        <span className="text-sm text-slate-300 font-mono">{token}</span>
+                        <span className="text-sm text-slate-300 font-mono">
+                          {token === '<START>' ? '⏵' : token}
+                        </span>
                         <span className="text-sm font-mono text-orange-300">
                           {currentResult.scores[idx]?.toFixed(3)}
                         </span>
@@ -425,12 +449,14 @@ export default function MaskedAttention() {
                 <div className="bg-slate-800/50 rounded-lg p-4 border border-red-600">
                   <div className="text-sm font-semibold text-red-300 mb-3 text-center">After Masking</div>
                   <div className="space-y-2">
-                    {targetTokens.map((token, idx) => (
+                    {decoderTokens.map((token, idx) => (
                       <div key={idx} className={`
                         flex items-center justify-between p-2 rounded
                         ${idx > currentTokenIdx ? 'bg-red-500/20 border border-red-500/50' : 'bg-green-500/10 border border-green-500/30'}
                       `}>
-                        <span className="text-sm text-slate-300 font-mono">{token}</span>
+                        <span className="text-sm text-slate-300 font-mono">
+                          {token === '<START>' ? '⏵' : token}
+                        </span>
                         <span className={`text-sm font-mono ${idx > currentTokenIdx ? 'text-red-400' : 'text-green-300'}`}>
                           {idx > currentTokenIdx ? '-∞' : currentResult.maskedScores[idx]?.toFixed(3)}
                         </span>
@@ -447,12 +473,14 @@ export default function MaskedAttention() {
             <div className="space-y-4 border-t border-slate-700 pt-6">
               <h3 className="text-lg font-bold text-green-300">Softmax (Only Over Visible Positions)</h3>
               <div className="flex items-center justify-center gap-4 flex-wrap">
-                {targetTokens.slice(0, currentTokenIdx + 1).map((token, idx) => {
+                {decoderTokens.slice(0, currentTokenIdx + 1).map((token, idx) => {
                   const percentage = (currentResult.weights[idx] || 0) * 100;
                   return (
                     <div key={idx} className="space-y-2">
                       <div className="bg-slate-700/50 rounded-lg p-4 border-2 border-green-400/50 min-w-[100px]">
-                        <div className="text-xs text-slate-400 mb-1 text-center">"{token}"</div>
+                        <div className="text-xs text-slate-400 mb-1 text-center">
+                          {token === '<START>' ? '⏵' : `"${token}"`}
+                        </div>
                         <div className="text-xl font-mono font-bold text-green-300 text-center">
                           {percentage.toFixed(1)}%
                         </div>
@@ -480,7 +508,7 @@ export default function MaskedAttention() {
               <div className="flex flex-col items-center gap-4">
                 <Vector 
                   values={currentResult.output} 
-                  label={`MaskedAttn(${currentToken})`}
+                  label={`MaskedAttn(${currentToken === '<START>' ? 'START' : currentToken})`}
                   color="#10B981"
                   showValues={true}
                   size="large"

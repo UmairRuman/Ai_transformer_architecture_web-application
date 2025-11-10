@@ -5,8 +5,9 @@ export default function Vector({
   label, 
   color = '#3B82F6', 
   showValues = true,
-  orientation = 'vertical', // 'vertical' or 'horizontal'
-  size = 'medium' // 'small', 'medium', 'large'
+  orientation = 'vertical',
+  size = 'medium',
+  showIndices = true // New prop to toggle index display
 }) {
   const sizes = {
     small: { box: 24, text: 'text-xs', spacing: 'gap-1', label: 'text-xs' },
@@ -30,6 +31,7 @@ export default function Vector({
         className={`
           inline-flex ${orientation === 'vertical' ? 'flex-col' : 'flex-row'} 
           ${config.spacing} bg-slate-800/50 rounded-lg p-2 border-2 backdrop-blur-sm
+          ${showIndices ? (orientation === 'vertical' ? 'pb-6' : 'pr-6') : ''}
         `}
         style={{ borderColor: color }}
       >
@@ -48,7 +50,7 @@ export default function Vector({
               style={{
                 width: config.box,
                 height: config.box,
-                backgroundColor: `${color}40`, // 40 = 25% opacity in hex
+                backgroundColor: `${color}40`,
                 color: 'white',
                 border: `1px solid ${color}`
               }}
@@ -63,19 +65,25 @@ export default function Vector({
               </div>
             )}
 
-            {/* Index Label (below/beside the box) */}
-            <div 
-              className={`
-                absolute text-slate-500 font-mono pointer-events-none
-                ${orientation === 'vertical' 
-                  ? 'top-full mt-0.5 left-1/2 -translate-x-1/2' 
-                  : 'left-full ml-0.5 top-1/2 -translate-y-1/2'
-                }
-              `}
-              style={{ fontSize: '0.65rem' }}
-            >
-              {idx}
-            </div>
+            {/* Index Label - FIXED POSITIONING */}
+            {showIndices && (
+              <div 
+                className={`
+                  absolute text-slate-400 font-mono pointer-events-none font-semibold
+                  ${orientation === 'vertical' 
+                    ? 'top-full left-1/2 -translate-x-1/2' 
+                    : 'left-full top-1/2 -translate-y-1/2'
+                  }
+                `}
+                style={{ 
+                  fontSize: '0.7rem',
+                  marginTop: orientation === 'vertical' ? '4px' : '0',
+                  marginLeft: orientation === 'horizontal' ? '4px' : '0'
+                }}
+              >
+                {idx}
+              </div>
+            )}
           </div>
         ))}
       </div>
