@@ -77,7 +77,7 @@ export default function Vector({
                 `}
                 style={{ 
                   fontSize: '0.7rem',
-                  marginTop: orientation === 'vertical' ? '4px' : '0',
+                  marginTop: orientation === 'vertical' ? '2px' : '0',
                   marginLeft: orientation === 'horizontal' ? '4px' : '0'
                 }}
               >

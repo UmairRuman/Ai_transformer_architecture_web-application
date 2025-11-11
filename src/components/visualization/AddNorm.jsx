@@ -111,31 +111,27 @@ export default function AddNorm() {
 
   // --- FIX #3: Animation and Completion Signal ---
   // This effect now controls the animation AND signals completion at the end.
-  useEffect(() => {
+useEffect(() => {
     if (!isPlaying || currentStep !== 'addnorm' || tokens.length === 0) return;
 
     const timer = setTimeout(() => {
       if (currentTokenIdx < tokens.length - 1) {
-        // Advance to the next token for visualization
         setCurrentTokenIdx(prev => prev + 1);
       } else {
-        // --- THIS IS THE NEW LOGIC ---
-        // We have finished animating all tokens. NOW we can signal completion.
-        console.log('Add & Norm animation complete. Setting final outputs.');
+        console.log('✅ AddNorm complete. Auto-advancing...');
         setAddNormOutputs1(normalizedOutputs);
+        
+        // ✨ AUTO-ADVANCE: Move to FeedForward
+        setTimeout(() => {
+          const { setCurrentStep, setIsPlaying } = useVisualizationStore.getState();
+          setCurrentStep('feedforward');
+          setIsPlaying(true);
+        }, 1500);
       }
-    }, 2000 / animationSpeed); // Simplified duration for each token step
+    }, 2000 / animationSpeed);
 
     return () => clearTimeout(timer);
-  }, [
-    isPlaying, 
-    currentStep, 
-    currentTokenIdx, 
-    tokens.length, 
-    animationSpeed, 
-    setAddNormOutputs1,
-    normalizedOutputs // Add this dependency
-  ]);
+  }, [isPlaying, currentStep, currentTokenIdx, tokens.length, animationSpeed, setAddNormOutputs1, normalizedOutputs]);
 
 
   if (currentStep !== 'addnorm' || residualOutputs.length === 0) return null;

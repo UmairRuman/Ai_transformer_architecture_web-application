@@ -128,6 +128,7 @@ const DotProductViz = ({ vec1, vec2, label1, label2 }) => {
   );
 };
 
+
 // Main Component
 export default function AttentionBlock() {
   const {
@@ -156,16 +157,19 @@ export default function AttentionBlock() {
   const numHeads = config?.numHeads || 2;
   const dK = dModel / numHeads;
 
-  useEffect(() => {
-  // When the attention calculation for ALL tokens is complete...
+ useEffect(() => {
   if (currentPhase === 'complete' && attentionResults.length > 0) {
-    console.log('Attention phase complete. Setting final outputs to the store.');
+    console.log('✅ Attention complete. Auto-advancing...');
     
-    // 1. Extract the final output vector from each token's result
     const finalOutputs = attentionResults.map(result => result.output);
-    
-    // 2. Save this array of vectors to our global store
     setAttentionOutputs(finalOutputs);
+    
+    // ✨ AUTO-ADVANCE: Move to AddNorm after showing completion
+    setTimeout(() => {
+      const { setCurrentStep, setIsPlaying } = useVisualizationStore.getState();
+      setCurrentStep('addnorm');
+      setIsPlaying(true);
+    }, 1500); // Show "All Tokens Processed!" message for 1.5s
   }
 }, [currentPhase, attentionResults, setAttentionOutputs]);
 
@@ -231,7 +235,7 @@ useEffect(() => {
       } else {
         // All tokens are done, complete the step
         setCurrentPhase('complete');
-        setIsPlaying(false); // Stop the auto-play
+        // setIsPlaying(false); // Stop the auto-play
       }
     }
   }, phaseDurations[currentPhase] / animationSpeed);

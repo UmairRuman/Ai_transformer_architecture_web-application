@@ -146,23 +146,20 @@ export default function FeedForward() {
       if (currentTokenIdx < tokens.length - 1) {
         setCurrentTokenIdx(prev => prev + 1);
       } else {
-        // We have finished animating all tokens. NOW we can signal completion.
-        console.log('FeedForward animation complete. Setting final encoder outputs.');
-        // We set the FINAL output of the entire encoder block
-        setEncoderOutputs(finalOutputs); 
+        console.log('✅ FeedForward complete. Encoder finished! Moving to Decoder...');
+        setEncoderOutputs(finalOutputs);
+        
+        // ✨ AUTO-ADVANCE: Move to Decoder phase (encoder is complete!)
+        setTimeout(() => {
+          const { setCurrentStep, setIsPlaying } = useVisualizationStore.getState();
+          setCurrentStep('decoder_start');
+          setIsPlaying(true);
+        }, 2000); // Longer delay to celebrate encoder completion
       }
     }, 3000 / animationSpeed);
 
     return () => clearTimeout(timer);
-  }, [
-    isPlaying, 
-    currentStep, 
-    currentTokenIdx, 
-    tokens.length, 
-    animationSpeed, 
-    setEncoderOutputs,
-    finalOutputs // Add this dependency
-  ]);
+  }, [isPlaying, currentStep, currentTokenIdx, tokens.length, animationSpeed, setEncoderOutputs, finalOutputs]);
 
   if (currentStep !== 'feedforward' || ffOutputs.length === 0) return null;
 
